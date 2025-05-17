@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
   <!-- Меню -->
   <nav class="sidebar">
@@ -19,91 +18,139 @@
       <li><a href="video.html">Видео</a></li>
     </ul>
   </nav>
+  <div class="container">
+      <h2>Курс валют</h2>
+      <input type="number" id="amount" placeholder="Введите сумму" />
+      <select id="direction">
+          <option value="to">Рубли → EGP</option>
+          <option value="from">EGP → Рубли</option>
+      </select>
+      <br />
+      <button onclick="calculate()">Рассчитать</button>
+      <div class="result" id="result">Загрузка курса...</div>
 
-<div class="content">
-  <h1>Курс Египетского фунта (EGP)</h1>
-  <p id="rate">Загрузка курса...</p>
+      <button onclick="showChart()">Показать график курса EGP за месяц</button>
 
-  <div class="calculator">
-    <input type="number" id="rubles" placeholder="Рубли">
-    <input type="number" id="egp" placeholder="EGP">
-    <button onclick="convertToEGP()">RUB → EGP</button>
-    <button onclick="convertToRUB()">EGP → RUB</button>
+      <div id="chart-container">
+          <h2>Курс EGP за последний месяц</h2>
+          <canvas id="chart"></canvas>
+          <div id="info"></div>
+      </div>
   </div>
 
-  <canvas id="myChart" width="400" height="200"></canvas>
-</div>
-<script>
-  let rate = 0;
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      var currentRate = 0;
+      var chart;
+      var chartData = [];
 
-  // Загружаем текущий курс EGP с сайта ЦБ РФ
-  fetch('https://www.cbr-xml-daily.ru/daily_json.js')
-    .then(response => response.json())
-    .then(data => {
-      rate = data.Valute.EGP.Value;
-      document.getElementById('rate').innerText = `1 EGP = ${rate.toFixed(2)} RUB`;
-    });
-
-  function convertToEGP() {
-    const rub = parseFloat(document.getElementById('rubles').value);
-    if (!rate || isNaN(rub)) {
-      alert('Введите сумму в рублях и дождитесь загрузки курса.');
-      return;
-    }
-    document.getElementById('egp').value = (rub / rate).toFixed(2);
-  }
-
-  function convertToRUB() {
-    const egp = parseFloat(document.getElementById('egp').value);
-    if (!rate || isNaN(egp)) {
-      alert('Введите сумму в EGP и дождитесь загрузки курса.');
-      return;
-    }
-    document.getElementById('rubles').value = (egp * rate).toFixed(2);
-  }
-
-  // График курса (примерные данные, для замены на API потом)
-  const ctx = document.getElementById('myChart').getContext('2d');
-  const labels = ['01.04', '05.04', '10.04', '15.04', '20.04', '25.04', '30.04'];
-  const values = [3.69, 3.71, 3.68, 3.72, 3.73, 3.70, 3.75];
-
-  const chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Курс EGP к RUB',
-        data: values,
-        backgroundColor: '#003366'
-      }]
-    },
-    options: {
-      onClick: function(event, elements) {
-        if (elements.length > 0) {
-          const i = elements[0].index;
-          alert('Дата: ' + labels[i] + ', Курс: ' + values[i]);
-        }
-      },
-      responsive: true,
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return `Курс: ${context.parsed.y}`;
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: false
-        }
+      function fetchRate() {
+          var today = new Date();
+          var day = ('0' + today.getDate()).slice(-2);
+          var month = ('0' + (today.getMonth() + 1)).slice(-2);
+          var year = today.getFullYear();
+          var url = 'https://www.cbr-xml-daily.ru/archive/' + year + '/' + month + '/' + day + '/daily_json.js';
+          fetch(url)
+              .then(response => response.json())
+              .then(data => {
+                  currentRate = data.Valute.EGP.Value/10;
+                  document.getElementById('result').innerText = 'Текущий курс EGP: ' + currentRate.toFixed(2) + ' ₽';
+              })
+              .catch(() => {
+                  document.getElementById('result').innerText = 'Ошибка загрузки курса.';
+              });
       }
-    }
-  });
-</script>
 
+      function calculate() {
+          var amount = parseFloat(document.getElementById('amount').value);
+          var direction = document.getElementById('direction').value;
+          if (isNaN(amount) || amount <= 0) {
+              document.getElementById('result').innerText = 'Введите корректную сумму.';
+              return;
+          }
+          if (currentRate === 0) {
+              document.getElementById('result').innerText = 'Курс ещё не загружен, подождите...';
+              return;
+          }
+          if (direction === 'to') {
+              var result = amount / currentRate;
+              document.getElementById('result').innerText = 'Итого: ' + result.toFixed(2) + 'EGP';
+          } else {
+              var result = amount * currentRate;
+              document.getElementById('result').innerText = 'Итого: ' + result.toFixed(2) + ' ₽';
+          }
+      }
 
+      function showChart() {
+          var chartContainer = document.getElementById('chart-container');
+          chartContainer.style.display = 'block';
+
+          if (chart) return;
+
+          var today = new Date();
+          var dates = [];
+          var values = [];
+          var promises = [];
+
+          for (var i = 30; i >= 0; i--) {
+              (function(i) {
+                  var date = new Date(today);
+                  date.setDate(date.getDate() - i);
+                  var day = ('0' + date.getDate()).slice(-2);
+                  var month = ('0' + (date.getMonth() + 1)).slice(-2);
+                  var year = date.getFullYear();
+                  var dateStr = day + '/' + month + '/' + year;
+                  dates.push(dateStr);
+
+                  var url = 'https://www.cbr-xml-daily.ru/archive/' + year + '/' + month + '/' + day + '/daily_json.js';
+
+                  var p = fetch(url)
+                      .then(resp => resp.json())
+                      .then(data => {
+                          var val = data.Valute.EGP.Value/10;
+                          values[i] = val;
+                          chartData[i] = {date: dateStr, value: val};
+                      })
+                      .catch(() => {
+                          values[i] = null;
+                          chartData[i] = {date: dateStr, value: null};
+                      });
+                  promises.push(p);
+              })(i);
+          }
+
+          Promise.all(promises).then(() => {
+              var ctx = document.getElementById('chart').getContext('2d');
+              chart = new Chart(ctx, {
+                  type: 'bar',
+                  data: {
+                      labels: dates,
+                      datasets: [{
+                          label: 'Курс EGP',
+                          data: values,
+                          backgroundColor: 'lightblue',
+                          borderColor: 'lightblue',
+                          borderWidth: 1
+                      }]
+                  },
+                  options: {
+                      onClick: function(evt, elements) {
+                          if (elements.length > 0) {
+                              var index = elements[0].index;
+                              var selected = chartData[index];
+                              document.getElementById('info').innerText = 'Дата: ' + selected.date + ', Курс: ' + (selected.value ? selected.value.toFixed(2) : 'нет данных') + ' ₽';
+                          }
+                      },
+                      scales: {
+                          y: { beginAtZero: false }
+                      }
+                  }
+              });
+          });
+      }
+
+      fetchRate();
+    </script>
 
 </body>
 </html>
